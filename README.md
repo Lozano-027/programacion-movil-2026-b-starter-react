@@ -29,7 +29,15 @@ La app y la API se ejecutan al mismo tiempo, cada una en su terminal. La app lee
 
 Rutas de la app, ya creadas como pantallas esqueleto: `/productos` (lista), `/productos/nuevo`, `/productos/:id` (detalle) y `/productos/:id/editar`.
 
-Hoy la API responde `501 Not implemented` en cada ruta de `/api/products`, y las pantallas muestran un `TODO`. Construir esa funcionalidad es el trabajo del parcial.
+La API ya implementa las cinco rutas de `/api/products` y la app tiene la lista (búsqueda, filtro por categoría y cuatro estados), el detalle (con eliminar y confirmación) y el formulario de crear y editar con validación en línea.
+
+### Pasos para probarlo
+
+1. `npm install` (solo la primera vez) y copiar `.env.example` como `.env`.
+2. En una terminal: `npm run server` (API en http://localhost:3000).
+3. En otra terminal: `npm run dev` y abrir http://localhost:5173.
+4. Para ver el estado de error, detener la API con `Ctrl + C` y recargar la app; «Reintentar» vuelve a cargar cuando la API arranca de nuevo.
+5. El ejercicio Kotlin (`kotlin/Product.kt`) se ejecuta pegándolo en https://play.kotlinlang.org.
 
 ## Flujo de entrega
 
@@ -38,7 +46,7 @@ Hoy la API responde `501 Not implemented` en cada ruta de `/api/products`, y las
 3. Trabaje la lista de [TODO.md](./TODO.md), en orden, con commits pequeños en formato [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): resumen` (por ejemplo, `docs(productos): describe la funcionalidad` o `feat(api): agrega el endpoint de lista`).
 4. Los documentos de `docs/` van **antes** que el código: el primer commit de código debe ser posterior al commit de documentación.
 5. Abra un **Pull Request hacia el `main` de su propio fork** (no hacia el repositorio original), con una descripción de lo hecho y el checklist de `docs/definition-of-done.md` marcado.
-6. Pegue el **enlace del PR** en la actividad de Moodle (texto en línea) antes del cierre: sábado 10 de octubre de 2026, 11:59 p. m.
+6. Pegue el **enlace del PR** en la actividad de Moodle (texto en línea) antes del cierre: lunes 12 de octubre de 2026, 11:59 p. m.
 
 ## Qué se evalúa (5,0)
 
@@ -105,3 +113,12 @@ Al terminar, agregue aquí abajo las dos secciones escritas en inglés (3 a 5 fr
 ---
 
 Las plantillas de `docs/` provienen del Mobile Governance Framework (licencia MIT; ver `docs/LICENSE-mobile-governance-framework.txt`).
+
+## State management decision
+
+Each screen keeps its own state with React's `useState` and loads its data with `useEffect`; the list also uses `useIonViewWillEnter` to reload when the user comes back to it. We chose this pattern because the screens do not share data: each one asks the API for what it needs, so a global store would only add code and new dependencies. The pure logic (validation, filtering and price formatting) lives in the `domain` layer, so it can be tested without the user interface. If the app grew, for example with a shopping cart or a user session shared by many screens, we would move the loading logic into custom hooks or use a store such as Zustand or React Query (see ADR-001).
+
+## API error handling
+
+The API always answers errors with the same JSON format, `{ "error": "...", "details": ["..."] }`: 400 for invalid data or a non-numeric id, 404 when a product does not exist, and the provided handlers return 404 for unknown routes and 500 for unexpected exceptions. In the app, the `request` function throws an `ApiError`: if `fetch` fails because the server is not responding, `status` is `null` and `isNetworkError` is true; if the server answers with a non-OK status, the error keeps the status code and the `details`. The screens use `getErrorMessage` to show a clear message: a "not found" state for 404, the validation details in the form for 400, and a "Reintentar" (retry) button when there is a network error. For example, the test "arranca y responde 404 con el formato de error en una ruta desconocida" calls `GET /api/no-existe` and checks that the 404 handler returns status 404 with `{ error, details }` (see ADR-002).
+

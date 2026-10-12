@@ -78,62 +78,73 @@ export function formatCOP(value: number): string {
   return `$ ${digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.')}`;
 }
 
+/** Etiqueta de stock: «Agotado» (0) · «Pocas unidades» (menos de LOW_STOCK_THRESHOLD) · «Disponible». */
+export function getStockLabel(stock: number): string {
+  if (stock === 0) return 'Agotado';
+  if (stock < LOW_STOCK_THRESHOLD) return 'Pocas unidades';
+  return 'Disponible';
+}
+
 /**
- * Convierte un `Product` en un `ProductView`.
- *
- * Contrato:
- *  - `name`: sin espacios sobrantes al inicio ni al final.
- *  - `priceLabel`: el precio con `formatCOP` (p. ej. 1250000 → "$ 1.250.000").
- *  - `stockLabel`: «Agotado» si stock = 0 · «Pocas unidades» si stock < LOW_STOCK_THRESHOLD · «Disponible» en otro caso.
- *  - `isOutOfStock` e `isLowStock` coherentes con la etiqueta; `id`, `category` y `stock` pasan sin cambios.
- *
- * TODO(Parte 3): implementar (hoy devuelve valores de relleno).
+ * Convierte un `Product` en un `ProductView` (datos listos para mostrar).
+ *  - `name` sin espacios sobrantes; `priceLabel` con `formatCOP`;
+ *  - `stockLabel`, `isOutOfStock` e `isLowStock` coherentes entre sí.
  */
 export function toProductView(product: Product): ProductView {
-  // TODO(Parte 3): reemplazar este relleno por la implementación real.
+  const isOutOfStock = product.stock === 0;
+  const isLowStock = product.stock > 0 && product.stock < LOW_STOCK_THRESHOLD;
   return {
     id: product.id,
-    name: product.name,
-    priceLabel: '',
+    name: product.name.trim(),
+    priceLabel: formatCOP(product.price),
     category: product.category,
     stock: product.stock,
-    stockLabel: '',
-    isLowStock: false,
-    isOutOfStock: false,
+    stockLabel: getStockLabel(product.stock),
+    isLowStock,
+    isOutOfStock,
   };
 }
 
 /**
- * Valida los datos del formulario con las MISMAS reglas que la API.
- *
- * Contrato:
- *  - `name`: obligatorio (solo espacios cuenta como vacío) y de máximo NAME_MAX_LENGTH caracteres.
- *  - `price`: número finito mayor que 0.
- *  - `category`: obligatoria y una de CATEGORIES.
- *  - `stock`: entero mayor o igual que 0.
- *  - `errors` trae un mensaje por cada campo inválido; `isValid` es true solo si no hay errores.
- *
- * TODO(Parte 3): implementar (hoy da por válido cualquier dato).
+ * Valida los datos del formulario con las MISMAS reglas que la API (server/app.js).
+ * Devuelve un mensaje por cada campo inválido; `isValid` es true solo si no hay errores.
  */
 export function validateProduct(input: ProductInput): ValidationResult {
-  // TODO(Parte 3): validar `input` y devolver los errores por campo.
-  void input;
-  return { isValid: true, errors: {} };
+  const errors: ValidationResult['errors'] = {};
+
+  const name = typeof input.name === 'string' ? input.name.trim() : '';
+  if (name === '') {
+    errors.name = 'El nombre es obligatorio.';
+  } else if (name.length > NAME_MAX_LENGTH) {
+    errors.name = `El nombre debe tener máximo ${NAME_MAX_LENGTH} caracteres.`;
+  }
+
+  if (typeof input.price !== 'number' || !Number.isFinite(input.price) || input.price <= 0) {
+    errors.price = 'El precio debe ser un número mayor que 0.';
+  }
+
+  if (!input.category) {
+    errors.category = 'La categoría es obligatoria.';
+  } else if (!(CATEGORIES as readonly string[]).includes(input.category)) {
+    errors.category = `La categoría debe ser una de: ${CATEGORIES.join(', ')}.`;
+  }
+
+  if (!Number.isInteger(input.stock) || input.stock < 0) {
+    errors.stock = 'El stock debe ser un número entero mayor o igual que 0.';
+  }
+
+  return { isValid: Object.keys(errors).length === 0, errors };
 }
 
 /**
- * Filtra la lista en memoria.
- *
- * Contrato:
- *  - `search`: conserva los productos cuyo nombre CONTIENE el texto, sin distinguir mayúsculas
- *    (un texto vacío o de espacios no filtra).
- *  - `category`: conserva solo los de esa categoría exacta (vacío = todas).
- *  - Devuelve un arreglo nuevo; no modifica el original.
- *
- * TODO(Parte 3): implementar (hoy devuelve la lista sin filtrar).
+ * Filtra la lista en memoria por texto (el nombre lo contiene, sin distinguir mayúsculas)
+ * y por categoría exacta (vacía = todas). Devuelve un arreglo nuevo.
  */
 export function filterProducts(products: Product[], filters: ProductFilters): Product[] {
-  // TODO(Parte 3): aplicar `filters.search` y `filters.category`.
-  void filters;
-  return products;
+  const searchText = filters.search.trim().toLowerCase();
+  return products.filter((product) => {
+    const hasSearchMatch = searchText === '' || product.name.toLowerCase().includes(searchText);
+    const hasCategoryMatch = filters.category === '' || product.category === filters.category;
+    return hasSearchMatch && hasCategoryMatch;
+  });
 }

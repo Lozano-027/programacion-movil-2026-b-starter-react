@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import seedProducts from '../../../../server/data/products.json';
-import { CATEGORIES, formatCOP, LOW_STOCK_THRESHOLD } from '../domain/product';
+import {
+  CATEGORIES,
+  filterProducts,
+  formatCOP,
+  LOW_STOCK_THRESHOLD,
+  toProductView,
+  validateProduct,
+  type Product,
+} from '../domain/product';
 
 /**
  * Pruebas unitarias de EJEMPLO (ya vienen dadas) para que `npm test` corra desde el inicio.
@@ -34,19 +42,54 @@ describe('formatCOP (ejemplo)', () => {
   });
 });
 
-/**
- * TODO(Parte 5): agregue sus pruebas UNITARIAS aquí (o en archivos nuevos dentro de __tests__/).
- * Mínimo dos de estas funciones del dominio: `validateProduct`, `toProductView` o `filterProducts`.
- * Quite el `.todo` cuando escriba el cuerpo de cada una.
- */
+/** Producto base para las pruebas; cada prueba cambia solo lo que necesita. */
+const sampleProduct: Product = { id: 1, name: 'Agua mineral 600 ml', price: 1800, category: 'Bebidas', stock: 120 };
+
 describe('validateProduct', () => {
-  it.todo('rechaza un nombre vacío, un precio menor o igual que 0 y una categoría no permitida');
+  it('acepta un producto válido', () => {
+    const result = validateProduct({ name: 'Café', price: 9800, category: 'Bebidas', stock: 0 });
+    expect(result).toEqual({ isValid: true, errors: {} });
+  });
+
+  it('rechaza un nombre vacío, un precio menor o igual que 0 y una categoría no permitida', () => {
+    const result = validateProduct({ name: '   ', price: 0, category: 'Ropa', stock: 2.5 });
+
+    expect(result.isValid).toBe(false);
+    expect(Object.keys(result.errors).sort()).toEqual(['category', 'name', 'price', 'stock']);
+  });
+
+  it('rechaza un nombre de más de 60 caracteres', () => {
+    const result = validateProduct({ name: 'a'.repeat(61), price: 100, category: 'Hogar', stock: 1 });
+    expect(result.errors.name).toBeDefined();
+  });
 });
 
 describe('toProductView', () => {
-  it.todo('formatea el precio en pesos y marca «Agotado» y «Pocas unidades»');
+  it('formatea el precio en pesos y marca «Agotado» y «Pocas unidades»', () => {
+    expect(toProductView({ ...sampleProduct, price: 1250000 }).priceLabel).toBe('$ 1.250.000');
+
+    const outOfStock = toProductView({ ...sampleProduct, stock: 0 });
+    expect(outOfStock.stockLabel).toBe('Agotado');
+    expect(outOfStock.isOutOfStock).toBe(true);
+
+    const lowStock = toProductView({ ...sampleProduct, stock: 4 });
+    expect(lowStock.stockLabel).toBe('Pocas unidades');
+    expect(lowStock.isLowStock).toBe(true);
+
+    expect(toProductView({ ...sampleProduct, stock: 5 }).stockLabel).toBe('Disponible');
+  });
 });
 
 describe('filterProducts', () => {
-  it.todo('filtra por texto sin distinguir mayúsculas y por categoría exacta');
+  it('filtra por texto sin distinguir mayúsculas y por categoría exacta', () => {
+    expect(filterProducts(seedProducts, { search: 'GALLETAS', category: '' }).map((item) => item.id)).toEqual([5]);
+    expect(filterProducts(seedProducts, { search: '', category: 'Aseo' }).map((item) => item.id)).toEqual([6, 7]);
+    expect(filterProducts(seedProducts, { search: 'jugo', category: 'Snacks' })).toEqual([]);
+  });
+
+  it('no filtra con texto vacío y no modifica el arreglo original', () => {
+    const result = filterProducts(seedProducts, { search: '  ', category: '' });
+    expect(result).toHaveLength(8);
+    expect(result).not.toBe(seedProducts);
+  });
 });
